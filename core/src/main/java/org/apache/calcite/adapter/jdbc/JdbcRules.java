@@ -23,12 +23,14 @@ import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptCost;
 import org.apache.calcite.plan.RelOptPlanner;
 import org.apache.calcite.plan.RelOptRule;
+import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelTrait;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.prepare.Prepare;
 import org.apache.calcite.rel.InvalidRelException;
 import org.apache.calcite.rel.RelCollation;
+import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.SingleRel;
@@ -59,6 +61,7 @@ import org.apache.calcite.rel.logical.LogicalValues;
 import org.apache.calcite.rel.metadata.RelMdUtil;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rel.rel2sql.SqlImplementor;
+import org.apache.calcite.rel.rules.ProjectSortTransposeRule;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
@@ -73,6 +76,7 @@ import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.calcite.util.Util;
 import org.apache.calcite.util.trace.CalciteTrace;
 
+import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableList;
 
 import org.slf4j.Logger;
@@ -517,13 +521,10 @@ public class JdbcRules {
 
     public RelNode convert(RelNode rel) {
       final Sort sort = (Sort) rel;
-      if (sort.offset != null || sort.fetch != null) {
-        // Cannot implement "OFFSET n FETCH n" currently.
-        return null;
-      }
       final RelTraitSet traitSet = sort.getTraitSet().replace(out);
       return new JdbcSort(rel.getCluster(), traitSet,
-          convert(sort.getInput(), traitSet), sort.getCollation());
+          convert(sort.getInput(), traitSet.replace(RelCollations.EMPTY)), sort.getCollation(),
+          sort.offset, sort.fetch);
     }
   }
 
@@ -535,18 +536,22 @@ public class JdbcRules {
         RelOptCluster cluster,
         RelTraitSet traitSet,
         RelNode input,
-        RelCollation collation) {
-      super(cluster, traitSet, input, collation);
+        RelCollation collation,
+        RexNode offset,
+        RexNode fetch) {
+      super(cluster, traitSet, input, collation, offset, fetch);
       assert getConvention() instanceof JdbcConvention;
       assert getConvention() == input.getConvention();
     }
 
     @Override public JdbcSort copy(RelTraitSet traitSet, RelNode newInput,
         RelCollation newCollation, RexNode offset, RexNode fetch) {
-      if (offset != null || fetch != null) {
-        throw new IllegalArgumentException("not supported: offset or fetch");
-      }
-      return new JdbcSort(getCluster(), traitSet, newInput, newCollation);
+      return new JdbcSort(getCluster(), traitSet, newInput, newCollation, offset, fetch);
+    }
+
+    @Override public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
+      double f = (offset != null || fetch != null) ? 0.05d : 0.05d; 
+      return super.computeSelfCost(planner, mq).multiplyBy(JdbcConvention.COST_MULTIPLIER * f);
     }
 
     public JdbcImplementor.Result implement(JdbcImplementor implementor) {
@@ -787,6 +792,7 @@ public class JdbcRules {
       return implementor.implement(this);
     }
   }
+
 }
 
 // End JdbcRules.java
