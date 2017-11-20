@@ -76,6 +76,7 @@ public class SqlDialect {
   private final String identifierEscapedQuote;
   private final DatabaseProduct databaseProduct;
   protected final NullCollation nullCollation;
+  protected final FetchOffsetType fetchOffsetType;
 
   //~ Constructors -----------------------------------------------------------
 
@@ -150,6 +151,9 @@ public class SqlDialect {
     this.identifierEscapedQuote =
         identifierQuoteString == null ? null
             : this.identifierEndQuoteString + this.identifierEndQuoteString;
+    this.fetchOffsetType =
+        context.fetchOffsetType() == null ? FetchOffsetType.FETCH_OFFSET
+            : context.fetchOffsetType();
   }
 
   //~ Methods ----------------------------------------------------------------
@@ -157,7 +161,7 @@ public class SqlDialect {
   /** Creates an empty context. Use {@link #EMPTY_CONTEXT} if possible. */
   protected static Context emptyContext() {
     return new ContextImpl(DatabaseProduct.UNKNOWN, null, null, -1, -1, null,
-        NullCollation.HIGH);
+        NullCollation.HIGH, FetchOffsetType.FETCH_OFFSET);
   }
 
   /**
@@ -568,8 +572,17 @@ public class SqlDialect {
    * If false, we assume that the dialect supports the alternative syntax
    * {@code LIMIT 20 OFFSET 10}.
    */
+  @Deprecated
   public boolean supportsOffsetFetch() {
-    return true;
+    return getFetchOffsetType() == FetchOffsetType.FETCH_OFFSET;
+  }
+
+  /**
+   * Returns the type of Fetch/Offset the database implements, {@link FetchOffsetType#NONE} if it
+   * does not implement at all.
+   */
+  public FetchOffsetType getFetchOffsetType() {
+    return fetchOffsetType;
   }
 
   /**
@@ -688,36 +701,36 @@ public class SqlDialect {
    * whether the database allows expressions to appear in the GROUP BY clause.
    */
   public enum DatabaseProduct {
-    ACCESS("Access", "\"", NullCollation.HIGH),
-    BIG_QUERY("Google BigQuery", "`", NullCollation.LOW),
-    CALCITE("Apache Calcite", "\"", NullCollation.HIGH),
-    MSSQL("Microsoft SQL Server", "[", NullCollation.HIGH),
-    MYSQL("MySQL", "`", NullCollation.LOW),
-    ORACLE("Oracle", "\"", NullCollation.HIGH),
-    DERBY("Apache Derby", null, NullCollation.HIGH),
-    DB2("IBM DB2", null, NullCollation.HIGH),
-    FIREBIRD("Firebird", null, NullCollation.HIGH),
-    H2("H2", "\"", NullCollation.HIGH),
-    HIVE("Apache Hive", null, NullCollation.LOW),
-    INFORMIX("Informix", null, NullCollation.HIGH),
-    INGRES("Ingres", null, NullCollation.HIGH),
-    LUCIDDB("LucidDB", "\"", NullCollation.HIGH),
-    INTERBASE("Interbase", null, NullCollation.HIGH),
-    PHOENIX("Phoenix", "\"", NullCollation.HIGH),
-    POSTGRESQL("PostgreSQL", "\"", NullCollation.HIGH),
-    NETEZZA("Netezza", "\"", NullCollation.HIGH),
-    INFOBRIGHT("Infobright", "`", NullCollation.HIGH),
-    NEOVIEW("Neoview", null, NullCollation.HIGH),
-    SYBASE("Sybase", null, NullCollation.HIGH),
-    TERADATA("Teradata", "\"", NullCollation.HIGH),
-    HSQLDB("Hsqldb", null, NullCollation.HIGH),
-    VERTICA("Vertica", "\"", NullCollation.HIGH),
-    SQLSTREAM("SQLstream", "\"", NullCollation.HIGH),
+    ACCESS("Access", "\"", NullCollation.HIGH, FetchOffsetType.TOP),
+    BIG_QUERY("Google BigQuery", "`", NullCollation.LOW, FetchOffsetType.LIMIT_OFFSET),
+    CALCITE("Apache Calcite", "\"", NullCollation.HIGH, FetchOffsetType.FETCH_OFFSET),
+    MSSQL("Microsoft SQL Server", "[", NullCollation.HIGH, FetchOffsetType.TOP),
+    MYSQL("MySQL", "`", NullCollation.LOW, FetchOffsetType.LIMIT_OFFSET),
+    ORACLE("Oracle", "\"", NullCollation.HIGH, FetchOffsetType.FETCH_OFFSET),
+    DERBY("Apache Derby", null, NullCollation.HIGH, FetchOffsetType.FETCH_OFFSET),
+    DB2("IBM DB2", null, NullCollation.HIGH, FetchOffsetType.LIMIT_OFFSET),
+    FIREBIRD("Firebird", null, NullCollation.HIGH, FetchOffsetType.FIRST),
+    H2("H2", "\"", NullCollation.HIGH, FetchOffsetType.LIMIT_OFFSET),
+    HIVE("Apache Hive", null, NullCollation.LOW, FetchOffsetType.OFFSET_LIMIT),
+    INFORMIX("Informix", null, NullCollation.HIGH, FetchOffsetType.FIRST),
+    INGRES("Ingres", null, NullCollation.HIGH, FetchOffsetType.FIRST),
+    LUCIDDB("LucidDB", "\"", NullCollation.HIGH, FetchOffsetType.NONE),
+    INTERBASE("Interbase", null, NullCollation.HIGH, FetchOffsetType.FIRST),
+    PHOENIX("Phoenix", "\"", NullCollation.HIGH, FetchOffsetType.LIMIT_OFFSET),
+    POSTGRESQL("PostgreSQL", "\"", NullCollation.HIGH, FetchOffsetType.LIMIT_OFFSET),
+    NETEZZA("Netezza", "\"", NullCollation.HIGH, FetchOffsetType.LIMIT_OFFSET),
+    INFOBRIGHT("Infobright", "`", NullCollation.HIGH, FetchOffsetType.LIMIT_OFFSET),
+    NEOVIEW("Neoview", null, NullCollation.HIGH, FetchOffsetType.NONE),
+    SYBASE("Sybase", null, NullCollation.HIGH, FetchOffsetType.LIMIT_OFFSET),
+    TERADATA("Teradata", "\"", NullCollation.HIGH, FetchOffsetType.TOP),
+    HSQLDB("Hsqldb", null, NullCollation.HIGH, FetchOffsetType.LIMIT_OFFSET),
+    VERTICA("Vertica", "\"", NullCollation.HIGH, FetchOffsetType.LIMIT_OFFSET),
+    SQLSTREAM("SQLstream", "\"", NullCollation.HIGH, FetchOffsetType.NONE),
 
     /** Paraccel, now called Actian Matrix. Redshift is based on this, so
      * presumably the dialect capabilities are similar. */
-    PARACCEL("Paraccel", "\"", NullCollation.HIGH),
-    REDSHIFT("Redshift", "\"", NullCollation.HIGH),
+    PARACCEL("Paraccel", "\"", NullCollation.HIGH, FetchOffsetType.NONE),
+    REDSHIFT("Redshift", "\"", NullCollation.HIGH, FetchOffsetType.LIMIT_OFFSET),
 
     /**
      * Placeholder for the unknown database.
@@ -726,7 +739,7 @@ public class SqlDialect {
      * do something database-specific like quoting identifiers, don't rely
      * on this dialect to do what you want.
      */
-    UNKNOWN("Unknown", "`", NullCollation.HIGH);
+    UNKNOWN("Unknown", "`", NullCollation.HIGH, FetchOffsetType.FETCH_OFFSET);
 
     private final Supplier<SqlDialect> dialect =
         Suppliers.memoize(new Supplier<SqlDialect>() {
@@ -740,20 +753,23 @@ public class SqlDialect {
                 .withDatabaseProduct(DatabaseProduct.this)
                 .withDatabaseProductName(databaseProductName)
                 .withIdentifierQuoteString(quoteString)
-                .withNullCollation(nullCollation));
+                .withNullCollation(nullCollation)
+                .withFetchOffsetType(fetchOffsetType));
           }
         });
 
     private String databaseProductName;
     private String quoteString;
     private final NullCollation nullCollation;
+    private FetchOffsetType fetchOffsetType;
 
     DatabaseProduct(String databaseProductName, String quoteString,
-        NullCollation nullCollation) {
+        NullCollation nullCollation, FetchOffsetType fetchOffsetType) {
       this.databaseProductName =
           Preconditions.checkNotNull(databaseProductName);
       this.quoteString = quoteString;
       this.nullCollation = Preconditions.checkNotNull(nullCollation);
+      this.fetchOffsetType = fetchOffsetType;
     }
 
     /**
@@ -791,6 +807,8 @@ public class SqlDialect {
     Context withIdentifierQuoteString(String identifierQuoteString);
     @Nonnull NullCollation nullCollation();
     Context withNullCollation(@Nonnull NullCollation nullCollation);
+    FetchOffsetType fetchOffsetType();
+    Context withFetchOffsetType(FetchOffsetType fetchOffsetType);
   }
 
   /** Implementation of Context. */
@@ -802,11 +820,13 @@ public class SqlDialect {
     private final int databaseMinorVersion;
     private final String identifierQuoteString;
     private final NullCollation nullCollation;
+    private final FetchOffsetType fetchOffsetType;
 
     private ContextImpl(DatabaseProduct databaseProduct,
         String databaseProductName, String databaseVersion,
         int databaseMajorVersion, int databaseMinorVersion,
-        String identifierQuoteString, NullCollation nullCollation) {
+        String identifierQuoteString, NullCollation nullCollation,
+        FetchOffsetType fetchOffsetType) {
       this.databaseProduct = Preconditions.checkNotNull(databaseProduct);
       this.databaseProductName = databaseProductName;
       this.databaseVersion = databaseVersion;
@@ -814,6 +834,7 @@ public class SqlDialect {
       this.databaseMinorVersion = databaseMinorVersion;
       this.identifierQuoteString = identifierQuoteString;
       this.nullCollation = Preconditions.checkNotNull(nullCollation);
+      this.fetchOffsetType = fetchOffsetType;
     }
 
     @Nonnull public DatabaseProduct databaseProduct() {
@@ -824,7 +845,7 @@ public class SqlDialect {
         @Nonnull DatabaseProduct databaseProduct) {
       return new ContextImpl(databaseProduct, databaseProductName,
           databaseVersion, databaseMajorVersion, databaseMinorVersion,
-          identifierQuoteString, nullCollation);
+          identifierQuoteString, nullCollation, databaseProduct.fetchOffsetType);
     }
 
     public String databaseProductName() {
@@ -834,7 +855,7 @@ public class SqlDialect {
     public Context withDatabaseProductName(String databaseProductName) {
       return new ContextImpl(databaseProduct, databaseProductName,
           databaseVersion, databaseMajorVersion, databaseMinorVersion,
-          identifierQuoteString, nullCollation);
+          identifierQuoteString, nullCollation, fetchOffsetType);
     }
 
     public String databaseVersion() {
@@ -844,7 +865,7 @@ public class SqlDialect {
     public Context withDatabaseVersion(String databaseVersion) {
       return new ContextImpl(databaseProduct, databaseProductName,
           databaseVersion, databaseMajorVersion, databaseMinorVersion,
-          identifierQuoteString, nullCollation);
+          identifierQuoteString, nullCollation, fetchOffsetType);
     }
 
     public int databaseMajorVersion() {
@@ -854,7 +875,7 @@ public class SqlDialect {
     public Context withDatabaseMajorVersion(int databaseMajorVersion) {
       return new ContextImpl(databaseProduct, databaseProductName,
           databaseVersion, databaseMajorVersion, databaseMinorVersion,
-          identifierQuoteString, nullCollation);
+          identifierQuoteString, nullCollation, fetchOffsetType);
     }
 
     public int databaseMinorVersion() {
@@ -864,7 +885,7 @@ public class SqlDialect {
     public Context withDatabaseMinorVersion(int databaseMinorVersion) {
       return new ContextImpl(databaseProduct, databaseProductName,
           databaseVersion, databaseMajorVersion, databaseMinorVersion,
-          identifierQuoteString, nullCollation);
+          identifierQuoteString, nullCollation, fetchOffsetType);
     }
 
     public String identifierQuoteString() {
@@ -874,7 +895,7 @@ public class SqlDialect {
     public Context withIdentifierQuoteString(String identifierQuoteString) {
       return new ContextImpl(databaseProduct, databaseProductName,
           databaseVersion, databaseMajorVersion, databaseMinorVersion,
-          identifierQuoteString, nullCollation);
+          identifierQuoteString, nullCollation, fetchOffsetType);
     }
 
     @Nonnull public NullCollation nullCollation() {
@@ -884,7 +905,17 @@ public class SqlDialect {
     public Context withNullCollation(@Nonnull NullCollation nullCollation) {
       return new ContextImpl(databaseProduct, databaseProductName,
           databaseVersion, databaseMajorVersion, databaseMinorVersion,
-          identifierQuoteString, nullCollation);
+          identifierQuoteString, nullCollation, fetchOffsetType);
+    }
+
+    public FetchOffsetType fetchOffsetType() {
+      return fetchOffsetType;
+    }
+
+    public Context withFetchOffsetType(FetchOffsetType fetchOffsetType) {
+      return new ContextImpl(databaseProduct, databaseProductName,
+          databaseVersion, databaseMajorVersion, databaseMinorVersion,
+          identifierQuoteString, nullCollation, fetchOffsetType);
     }
   }
 }

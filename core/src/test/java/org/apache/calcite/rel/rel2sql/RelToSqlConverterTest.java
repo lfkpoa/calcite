@@ -28,6 +28,7 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.rules.UnionMergeRule;
 import org.apache.calcite.runtime.FlatLists;
 import org.apache.calcite.schema.SchemaPlus;
+import org.apache.calcite.sql.FetchOffsetType;
 import org.apache.calcite.sql.SqlDialect;
 import org.apache.calcite.sql.SqlNode;
 import org.apache.calcite.sql.dialect.CalciteSqlDialect;
@@ -99,7 +100,8 @@ public class RelToSqlConverterTest {
     return new MysqlSqlDialect(SqlDialect.EMPTY_CONTEXT
         .withDatabaseProduct(SqlDialect.DatabaseProduct.MYSQL)
         .withIdentifierQuoteString("`")
-        .withNullCollation(nullCollation));
+        .withNullCollation(nullCollation)
+        .withFetchOffsetType(FetchOffsetType.LIMIT_OFFSET));
   }
 
   @Test public void testSimpleSelectStarFromProductTable() {
@@ -346,7 +348,7 @@ public class RelToSqlConverterTest {
     String query = "select \"product_id\"  from \"product\" limit 100 offset 10";
     final String expected = "SELECT product_id\n"
         + "FROM foodmart.product\n"
-        + "LIMIT 100\nOFFSET 10";
+        + "LIMIT 10, 100";
     sql(query).withHive().ok(expected);
   }
 
@@ -597,7 +599,7 @@ public class RelToSqlConverterTest {
     sql(query).ok(expected);
   }
 
-  @Test public void testSelectQueryWithFetchOffsetClause() {
+  @Test public void testSelectQueryWithOrderFetchOffsetClause() {
     String query = "select \"product_id\"  from \"product\" order by \"product_id\""
         + " offset 10 rows fetch next 100 rows only";
     final String expected = "SELECT \"product_id\"\n"
@@ -606,6 +608,229 @@ public class RelToSqlConverterTest {
         + "OFFSET 10 ROWS\n"
         + "FETCH NEXT 100 ROWS ONLY";
     sql(query).ok(expected);
+  }
+
+  @Test public void testSelectQueryWithFetchClause() {
+    String query = "select \"product_id\"  from \"product\""
+        + " fetch next 100 rows only";
+    final String expected = "SELECT \"product_id\"\n"
+        + "FROM \"foodmart\".\"product\"\n"
+        + "FETCH NEXT 100 ROWS ONLY";
+    sql(query).ok(expected);
+  }
+
+  @Test public void testFetchDialects() {
+    final String query = "select \"product_id\"\n"
+        + "from \"product\"\n"
+        + "where \"cases_per_pallet\" > 100\n"
+        + "fetch next 100 rows only";
+    final String expectedOracle = "SELECT \"product_id\"\n"
+        + "FROM \"foodmart\".\"product\"\n"
+        + "WHERE \"cases_per_pallet\" > 100\n"
+        + "FETCH NEXT 100 ROWS ONLY";
+    final String expectedMssql = "SELECT TOP 100 [product_id]\n"
+        + "FROM [foodmart].[product]\n"
+        + "WHERE [cases_per_pallet] > 100";
+    final String expectedMySql = "SELECT `product_id`\n"
+        + "FROM `foodmart`.`product`\n"
+        + "WHERE `cases_per_pallet` > 100\n"
+        + "LIMIT 100";
+    final String expectedHive = "SELECT product_id\n"
+        + "FROM foodmart.product\n"
+        + "WHERE cases_per_pallet > 100\n"
+        + "LIMIT 100";
+
+    sql(query)
+      .withOracle()
+      .ok(expectedOracle)
+      .withMssql()
+      .ok(expectedMssql)
+      .withMysql()
+      .ok(expectedMySql)
+      .withHive()
+      .ok(expectedHive);
+  }
+
+  @Test public void testOffsetDialects() {
+    final String query = "select \"product_id\"\n"
+        + "from \"product\"\n"
+        + "where \"cases_per_pallet\" > 100\n"
+        + "offset 200 rows";
+    final String expectedOracle = "SELECT \"product_id\"\n"
+        + "FROM \"foodmart\".\"product\"\n"
+        + "WHERE \"cases_per_pallet\" > 100\n"
+        + "OFFSET 200 ROWS";
+    final String expectedMySql = "SELECT `product_id`\n"
+        + "FROM `foodmart`.`product`\n"
+        + "WHERE `cases_per_pallet` > 100\n"
+        + "OFFSET 200";
+    final String expectedHsqldb = "SELECT product_id\n"
+        + "FROM foodmart.product\n"
+        + "WHERE cases_per_pallet > 100\n"
+        + "OFFSET 200";
+    final String expectedPostgresql = "SELECT \"product_id\"\n"
+        + "FROM \"foodmart\".\"product\"\n"
+        + "WHERE \"cases_per_pallet\" > 100\n"
+        + "OFFSET 200";
+    sql(query)
+      .withOracle()
+      .ok(expectedOracle)
+      .withMysql()
+      .ok(expectedMySql)
+      .withHsqldb()
+      .ok(expectedHsqldb)
+      .withPostgresql()
+      .ok(expectedPostgresql);
+  }
+
+  @Test public void testFetchOffsetDialects() {
+    final String query = "select \"product_id\"\n"
+        + "from \"product\"\n"
+        + "where \"cases_per_pallet\" > 100\n"
+        + "offset 200 rows fetch next 100 rows only";
+    final String expectedOracle = "SELECT \"product_id\"\n"
+        + "FROM \"foodmart\".\"product\"\n"
+        + "WHERE \"cases_per_pallet\" > 100\n"
+        + "OFFSET 200 ROWS\n"
+        + "FETCH NEXT 100 ROWS ONLY";
+    final String expectedMySql = "SELECT `product_id`\n"
+        + "FROM `foodmart`.`product`\n"
+        + "WHERE `cases_per_pallet` > 100\n"
+        + "LIMIT 100\n"
+        + "OFFSET 200";
+    final String expectedHsqldb = "SELECT product_id\n"
+        + "FROM foodmart.product\n"
+        + "WHERE cases_per_pallet > 100\n"
+        + "LIMIT 100\n"
+        + "OFFSET 200";
+    final String expectedPostgresql = "SELECT \"product_id\"\n"
+        + "FROM \"foodmart\".\"product\"\n"
+        + "WHERE \"cases_per_pallet\" > 100\n"
+        + "LIMIT 100\n"
+        + "OFFSET 200";
+    sql(query)
+      .withOracle()
+      .ok(expectedOracle)
+      .withMysql()
+      .ok(expectedMySql)
+      .withHsqldb()
+      .ok(expectedHsqldb)
+      .withPostgresql()
+      .ok(expectedPostgresql);
+  }
+
+  @Test public void testSortFetchDialects() {
+    final String query = "select \"product_id\"\n"
+        + "from \"product\"\n"
+        + "where \"cases_per_pallet\" > 100\n"
+        + "order by \"product_id\" desc\n"
+        + "fetch next 100 rows only";
+    final String expectedOracle = "SELECT \"product_id\"\n"
+        + "FROM \"foodmart\".\"product\"\n"
+        + "WHERE \"cases_per_pallet\" > 100\n"
+        + "ORDER BY \"product_id\" DESC\n"
+        + "FETCH NEXT 100 ROWS ONLY";
+    final String expectedMssql = "SELECT TOP 100 [product_id]\n"
+        + "FROM [foodmart].[product]\n"
+        + "WHERE [cases_per_pallet] > 100\n"
+        + "ORDER BY [product_id] DESC";
+    final String expectedMySql = "SELECT `product_id`\n"
+        + "FROM `foodmart`.`product`\n"
+        + "WHERE `cases_per_pallet` > 100\n"
+        + "ORDER BY `product_id` IS NULL DESC, `product_id` DESC\n"
+        + "LIMIT 100";
+    final String expectedHive = "SELECT product_id\n"
+        + "FROM foodmart.product\n"
+        + "WHERE cases_per_pallet > 100\n"
+        + "ORDER BY product_id IS NULL DESC, product_id DESC\n"
+        + "LIMIT 100";
+    sql(query)
+      .withOracle()
+      .ok(expectedOracle)
+      .withMssql()
+      .ok(expectedMssql)
+      .withMysql()
+      .ok(expectedMySql)
+      .withHive()
+      .ok(expectedHive);
+  }
+
+  @Test public void testSortOffsetDialects() {
+    final String query = "select \"product_id\"\n"
+        + "from \"product\"\n"
+        + "where \"cases_per_pallet\" > 100\n"
+        + "order by \"product_id\" desc\n"
+        + "offset 200 rows";
+    final String expectedOracle = "SELECT \"product_id\"\n"
+        + "FROM \"foodmart\".\"product\"\n"
+        + "WHERE \"cases_per_pallet\" > 100\n"
+        + "ORDER BY \"product_id\" DESC\n"
+        + "OFFSET 200 ROWS";
+    final String expectedMySql = "SELECT `product_id`\n"
+        + "FROM `foodmart`.`product`\n"
+        + "WHERE `cases_per_pallet` > 100\n"
+        + "ORDER BY `product_id` IS NULL DESC, `product_id` DESC\n"
+        + "OFFSET 200";
+    final String expectedHsqldb = "SELECT product_id\n"
+        + "FROM foodmart.product\n"
+        + "WHERE cases_per_pallet > 100\n"
+        + "ORDER BY product_id DESC\n"
+        + "OFFSET 200";
+    final String expectedPostgresql = "SELECT \"product_id\"\n"
+        + "FROM \"foodmart\".\"product\"\n"
+        + "WHERE \"cases_per_pallet\" > 100\n"
+        + "ORDER BY \"product_id\" DESC\n"
+        + "OFFSET 200";
+    sql(query)
+      .withOracle()
+      .ok(expectedOracle)
+      .withMysql()
+      .ok(expectedMySql)
+      .withHsqldb()
+      .ok(expectedHsqldb)
+      .withPostgresql()
+      .ok(expectedPostgresql);
+  }
+
+  @Test public void testSortFetchOffsetDialects() {
+    final String query = "select \"product_id\"\n"
+        + "from \"product\"\n"
+        + "where \"cases_per_pallet\" > 100\n"
+        + "order by \"product_id\" desc\n"
+        + "offset 200 rows fetch next 100 rows only";
+    final String expectedOracle = "SELECT \"product_id\"\n"
+        + "FROM \"foodmart\".\"product\"\n"
+        + "WHERE \"cases_per_pallet\" > 100\n"
+        + "ORDER BY \"product_id\" DESC\n"
+        + "OFFSET 200 ROWS\n"
+        + "FETCH NEXT 100 ROWS ONLY";
+    final String expectedMySql = "SELECT `product_id`\n"
+        + "FROM `foodmart`.`product`\n"
+        + "WHERE `cases_per_pallet` > 100\n"
+        + "ORDER BY `product_id` IS NULL DESC, `product_id` DESC\n"
+        + "LIMIT 100\n"
+        + "OFFSET 200";
+    final String expectedHsqldb = "SELECT product_id\n"
+        + "FROM foodmart.product\n"
+        + "WHERE cases_per_pallet > 100\n"
+        + "ORDER BY product_id DESC\n"
+        + "LIMIT 100\n"
+        + "OFFSET 200";
+    final String expectedPostgresql = "SELECT \"product_id\"\n"
+        + "FROM \"foodmart\".\"product\"\n"
+        + "WHERE \"cases_per_pallet\" > 100\n"
+        + "ORDER BY \"product_id\" DESC\n"
+        + "LIMIT 100\n"
+        + "OFFSET 200";
+    sql(query)
+      .withOracle()
+      .ok(expectedOracle)
+      .withMysql()
+      .ok(expectedMySql)
+      .withHsqldb()
+      .ok(expectedHsqldb)
+      .withPostgresql()
+      .ok(expectedPostgresql);
   }
 
   @Test public void testSelectQueryComplex() {

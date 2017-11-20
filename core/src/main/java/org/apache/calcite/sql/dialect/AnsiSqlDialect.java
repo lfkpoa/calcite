@@ -16,6 +16,7 @@
  */
 package org.apache.calcite.sql.dialect;
 
+import org.apache.calcite.sql.FetchOffsetType;
 import org.apache.calcite.sql.SqlDialect;
 
 /**
@@ -30,7 +31,8 @@ public class AnsiSqlDialect extends SqlDialect {
   public static final SqlDialect DEFAULT =
       new AnsiSqlDialect(emptyContext()
           .withDatabaseProduct(DatabaseProduct.UNKNOWN)
-          .withIdentifierQuoteString("`"));
+          .withIdentifierQuoteString("`")
+          .withFetchOffsetType(FetchOffsetType.FETCH_OFFSET));
 
   /** Creates an AnsiSqlDialect. */
   public AnsiSqlDialect(Context context) {

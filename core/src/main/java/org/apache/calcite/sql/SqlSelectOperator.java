@@ -139,6 +139,10 @@ public class SqlSelectOperator extends SqlOperator {
     final SqlWriter.Frame selectFrame =
         writer.startList(SqlWriter.FrameTypeEnum.SELECT);
     writer.sep("SELECT");
+    FetchOffsetType fetchOffsetType = writer.getDialect().getFetchOffsetType();
+    if (select.fetch != null || select.offset != null) {
+      fetchOffsetType.unparse(SqlWriter.FrameTypeEnum.SELECT, writer, select.fetch, select.offset);
+    }
     for (int i = 0; i < select.keywordList.size(); i++) {
       final SqlNode keyword = select.keywordList.get(i);
       keyword.unparse(writer, 0, 0);
@@ -239,7 +243,10 @@ public class SqlSelectOperator extends SqlOperator {
       unparseListClause(writer, select.orderBy);
       writer.endList(orderFrame);
     }
-    writer.fetchOffset(select.fetch, select.offset);
+    if (select.fetch != null || select.offset != null) {
+      fetchOffsetType.unparse(SqlWriter.FrameTypeEnum.ORDER_BY, writer,
+          select.fetch, select.offset);
+    }
     writer.endList(selectFrame);
   }
 
