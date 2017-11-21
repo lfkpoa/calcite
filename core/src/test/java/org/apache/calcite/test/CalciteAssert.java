@@ -1483,7 +1483,7 @@ public class CalciteAssert {
           "getDataSource(), \""
           + expected.replace("\\", "\\\\")
               .replace("\"", "\\\"")
-              .replaceAll("\n", "\\\\n")
+              .replaceAll("\r?\n", "\\\\n")
           + "\"");
     }
 

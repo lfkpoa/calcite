@@ -29,6 +29,7 @@ import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.prepare.Prepare;
 import org.apache.calcite.rel.InvalidRelException;
 import org.apache.calcite.rel.RelCollation;
+import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.SingleRel;
@@ -518,13 +519,15 @@ public class JdbcRules {
 
     public RelNode convert(RelNode rel) {
       final Sort sort = (Sort) rel;
-      if (sort.offset != null || sort.fetch != null) {
-        // Cannot implement "OFFSET n FETCH n" currently.
+      if ((sort.fetch != null && !out.dialect.getFetchOffsetType().supportsFetch())
+          || (sort.offset != null && !out.dialect.getFetchOffsetType().supportsOffset())) {
         return null;
       }
+
       final RelTraitSet traitSet = sort.getTraitSet().replace(out);
       return new JdbcSort(rel.getCluster(), traitSet,
-          convert(sort.getInput(), traitSet), sort.getCollation());
+          convert(sort.getInput(), traitSet.replace(RelCollations.EMPTY)),
+          sort.getCollation(), sort.offset, sort.fetch);
     }
   }
 
@@ -536,18 +539,17 @@ public class JdbcRules {
         RelOptCluster cluster,
         RelTraitSet traitSet,
         RelNode input,
-        RelCollation collation) {
-      super(cluster, traitSet, input, collation);
+        RelCollation collation,
+        RexNode offset,
+        RexNode fetch) {
+      super(cluster, traitSet, input, collation, offset, fetch);
       assert getConvention() instanceof JdbcConvention;
       assert getConvention() == input.getConvention();
     }
 
     @Override public JdbcSort copy(RelTraitSet traitSet, RelNode newInput,
         RelCollation newCollation, RexNode offset, RexNode fetch) {
-      if (offset != null || fetch != null) {
-        throw new IllegalArgumentException("not supported: offset or fetch");
-      }
-      return new JdbcSort(getCluster(), traitSet, newInput, newCollation);
+      return new JdbcSort(getCluster(), traitSet, newInput, newCollation, offset, fetch);
     }
 
     public JdbcImplementor.Result implement(JdbcImplementor implementor) {

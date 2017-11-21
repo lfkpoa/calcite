@@ -372,6 +372,106 @@ public class JdbcAdapterTest {
     CalciteAssert.model(JdbcTest.SCOTT_MODEL).query(sql).returns("C=56\n");
   }
 
+  @Test public void testSortPush() {
+    final String sql = "SELECT empno, ename\n"
+        + "FROM Scott.emp ORDER BY ename";
+    final String plan = "PLAN=JdbcToEnumerableConverter\n"
+        + "  JdbcSort(sort0=[$1], dir0=[ASC])\n"
+        + "    JdbcProject(EMPNO=[$0], ENAME=[$1])\n"
+        + "      JdbcTableScan(table=[[SCOTT, EMP]])";
+    final String planSql = "SELECT \"EMPNO\", \"ENAME\"\n"
+        + "FROM \"SCOTT\".\"EMP\"\n"
+        + "ORDER BY \"ENAME\" NULLS LAST";
+    CalciteAssert.model(JdbcTest.SCOTT_MODEL)
+      .query(sql)
+      .explainContains(plan)
+      .planHasSql(planSql);
+  }
+
+  @Test public void testSortNested() {
+    final String sql = "SELECT ename FROM (\n"
+        + "SELECT ename\n"
+        + "FROM Scott.emp ORDER BY empno, ename) t\n"
+        + "ORDER BY ename";
+    final String plan = "PLAN=JdbcToEnumerableConverter\n"
+        + "  JdbcProject(ENAME=[$1])\n"
+        + "    JdbcSort(sort0=[$1], dir0=[ASC])\n"
+        + "      JdbcTableScan(table=[[SCOTT, EMP]])";
+    final String planSql = "SELECT \"ENAME\"\n"
+        + "FROM \"SCOTT\".\"EMP\"\n"
+        + "ORDER BY \"ENAME\" NULLS LAST";
+    CalciteAssert.model(JdbcTest.SCOTT_MODEL)
+      .query(sql)
+      .explainContains(plan)
+      .planHasSql(planSql);
+  }
+
+  @Test public void testSortNestedSimplified() {
+    final String sql = "SELECT ename FROM (\n"
+        + "SELECT empno, ename\n"
+        + "FROM Scott.emp ORDER BY ename) t\n"
+        + "ORDER BY ename";
+    final String plan = "PLAN=JdbcToEnumerableConverter\n"
+        + "  JdbcSort(sort0=[$0], dir0=[ASC])\n"
+        + "    JdbcProject(ENAME=[$1])\n"
+        + "      JdbcTableScan(table=[[SCOTT, EMP]])";
+    final String planSql = "SELECT \"ENAME\"\n"
+        + "FROM \"SCOTT\".\"EMP\"\n"
+        + "ORDER BY \"ENAME\" NULLS LAST";
+    CalciteAssert.model(JdbcTest.SCOTT_MODEL)
+      .query(sql)
+      .explainContains(plan)
+      .planHasSql(planSql);
+  }
+
+  @Test public void testSortWithJoinPlan() {
+    final String sql = "SELECT T1.\"brand_name\"\n"
+        + "FROM \"foodmart\".\"product\" AS T1\n"
+        + "INNER JOIN \"foodmart\".\"product_class\" AS T2\n"
+        + "ON T1.\"product_class_id\" = T2.\"product_class_id\"\n"
+        + "WHERE T2.\"product_department\" = 'Frozen Foods'\n"
+        + "OR T2.\"product_department\" = 'Baking Goods'\n"
+        + "AND T1.\"brand_name\" <> 'King'\n"
+        + "ORDER BY T1.\"brand_name\"";
+    final String plan = "PLAN=JdbcToEnumerableConverter\n"
+        + "  JdbcProject(brand_name=[$1])\n"
+        + "    JdbcSort(sort0=[$1], dir0=[ASC])\n"
+        + "      JdbcJoin(condition=[AND(=($0, $2), OR(=($3, 'Frozen Foods'), "
+        + "AND(=($3, 'Baking Goods'), <>($1, 'King'))))], joinType=[inner])\n"
+        + "        JdbcProject(product_class_id=[$0], brand_name=[$2])\n"
+        + "          JdbcTableScan(table=[[foodmart, product]])\n"
+        + "        JdbcProject(product_class_id=[$0], product_department=[$3])\n"
+        + "          JdbcTableScan(table=[[foodmart, product_class]])";
+    final String planSql = "SELECT T1.\"brand_name\"\n"
+        + "FROM \"foodmart\".\"product\" AS T1\n"
+        + "INNER JOIN \"foodmart\".\"product_class\" AS T2\n"
+        + "ON T1.\"product_class_id\" = T2.\"product_class_id\"\n"
+        + "WHERE T2.\"product_department\" = 'Frozen Foods'\n"
+        + "OR T2.\"product_department\" = 'Baking Goods'\n"
+        + "AND T1.\"brand_name\" <> 'King'\n"
+        + "ORDER BY T1.\"brand_name\"";
+    CalciteAssert.model(JdbcTest.FOODMART_MODEL)
+        .query(sql)
+        .explainContains(plan)
+        .planHasSql(planSql);
+  }
+
+  @Test public void testLimitPush() {
+    final String sql = "SELECT ename\n"
+        + "FROM Scott.emp LIMIT 10";
+    final String plan = "PLAN=JdbcToEnumerableConverter\n"
+            + "  JdbcProject(ENAME=[$1])\n"
+            + "    JdbcSort(fetch=[10])\n"
+            + "      JdbcTableScan(table=[[SCOTT, EMP]])";
+    final String planSql = "SELECT \"ENAME\"\n"
+        + "FROM \"SCOTT\".\"EMP\""
+        + "\nLIMIT 100";
+    CalciteAssert.model(JdbcTest.SCOTT_MODEL)
+        .query(sql)
+        .explainContains(plan)
+        .planHasSql(planSql);
+  }
+
   /** Test case for
    * <a href="https://issues.apache.org/jira/browse/CALCITE-657">[CALCITE-657]
    * NullPointerException when executing JdbcAggregate implement method</a>. */

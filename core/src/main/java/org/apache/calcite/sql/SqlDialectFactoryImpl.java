@@ -75,57 +75,57 @@ public class SqlDialectFactoryImpl implements SqlDialectFactory {
         .withNullCollation(nullCollation);
     switch (upperProductName) {
     case "ACCESS":
-      return new AccessSqlDialect(c);
+      return new AccessSqlDialect(c.withDatabaseProduct(SqlDialect.DatabaseProduct.ACCESS));
     case "APACHE DERBY":
-      return new DerbySqlDialect(c);
+      return new DerbySqlDialect(c.withDatabaseProduct(SqlDialect.DatabaseProduct.DERBY));
     case "DBMS:CLOUDSCAPE":
       return new DerbySqlDialect(c);
     case "HIVE":
-      return new HiveSqlDialect(c);
+      return new HiveSqlDialect(c.withDatabaseProduct(SqlDialect.DatabaseProduct.HIVE));
     case "INGRES":
-      return new IngresSqlDialect(c);
+      return new IngresSqlDialect(c.withDatabaseProduct(SqlDialect.DatabaseProduct.INGRES));
     case "INTERBASE":
-      return new InterbaseSqlDialect(c);
+      return new InterbaseSqlDialect(c.withDatabaseProduct(SqlDialect.DatabaseProduct.INTERBASE));
     case "LUCIDDB":
-      return new LucidDbSqlDialect(c);
+      return new LucidDbSqlDialect(c.withDatabaseProduct(SqlDialect.DatabaseProduct.LUCIDDB));
     case "ORACLE":
-      return new OracleSqlDialect(c);
+      return new OracleSqlDialect(c.withDatabaseProduct(SqlDialect.DatabaseProduct.ORACLE));
     case "PHOENIX":
-      return new PhoenixSqlDialect(c);
+      return new PhoenixSqlDialect(c.withDatabaseProduct(SqlDialect.DatabaseProduct.PHOENIX));
     case "MYSQL (INFOBRIGHT)":
-      return new InfobrightSqlDialect(c);
+      return new InfobrightSqlDialect(c.withDatabaseProduct(SqlDialect.DatabaseProduct.INFOBRIGHT));
     case "MYSQL":
-      return new MysqlSqlDialect(c);
+      return new MysqlSqlDialect(c.withDatabaseProduct(SqlDialect.DatabaseProduct.MYSQL));
     case "REDSHIFT":
-      return new RedshiftSqlDialect(c);
+      return new RedshiftSqlDialect(c.withDatabaseProduct(SqlDialect.DatabaseProduct.REDSHIFT));
     }
     // Now the fuzzy matches.
     if (databaseProductName.startsWith("DB2")) {
-      return new Db2SqlDialect(c);
+      return new Db2SqlDialect(c.withDatabaseProduct(SqlDialect.DatabaseProduct.DB2));
     } else if (upperProductName.contains("FIREBIRD")) {
-      return new FirebirdSqlDialect(c);
+      return new FirebirdSqlDialect(c.withDatabaseProduct(SqlDialect.DatabaseProduct.FIREBIRD));
     } else if (databaseProductName.startsWith("Informix")) {
-      return new InformixSqlDialect(c);
+      return new InformixSqlDialect(c.withDatabaseProduct(SqlDialect.DatabaseProduct.INFORMIX));
     } else if (upperProductName.contains("NETEZZA")) {
-      return new NetezzaSqlDialect(c);
+      return new NetezzaSqlDialect(c.withDatabaseProduct(SqlDialect.DatabaseProduct.NETEZZA));
     } else if (upperProductName.contains("PARACCEL")) {
-      return new ParaccelSqlDialect(c);
+      return new ParaccelSqlDialect(c.withDatabaseProduct(SqlDialect.DatabaseProduct.PARACCEL));
     } else if (databaseProductName.startsWith("HP Neoview")) {
-      return new NeoviewSqlDialect(c);
+      return new NeoviewSqlDialect(c.withDatabaseProduct(SqlDialect.DatabaseProduct.NEOVIEW));
     } else if (upperProductName.contains("POSTGRE")) {
-      return new PostgresqlSqlDialect(c);
+      return new PostgresqlSqlDialect(c.withDatabaseProduct(SqlDialect.DatabaseProduct.POSTGRESQL));
     } else if (upperProductName.contains("SQL SERVER")) {
-      return new MssqlSqlDialect(c);
+      return new MssqlSqlDialect(c.withDatabaseProduct(SqlDialect.DatabaseProduct.MSSQL));
     } else if (upperProductName.contains("SYBASE")) {
-      return new SybaseSqlDialect(c);
+      return new SybaseSqlDialect(c.withDatabaseProduct(SqlDialect.DatabaseProduct.SYBASE));
     } else if (upperProductName.contains("TERADATA")) {
-      return new TeradataSqlDialect(c);
+      return new TeradataSqlDialect(c.withDatabaseProduct(SqlDialect.DatabaseProduct.TERADATA));
     } else if (upperProductName.contains("HSQL")) {
-      return new HsqldbSqlDialect(c);
+      return new HsqldbSqlDialect(c.withDatabaseProduct(SqlDialect.DatabaseProduct.HSQLDB));
     } else if (upperProductName.contains("H2")) {
-      return new H2SqlDialect(c);
+      return new H2SqlDialect(c.withDatabaseProduct(SqlDialect.DatabaseProduct.H2));
     } else if (upperProductName.contains("VERTICA")) {
-      return new VerticaSqlDialect(c);
+      return new VerticaSqlDialect(c.withDatabaseProduct(SqlDialect.DatabaseProduct.VERTICA));
     } else {
       return new AnsiSqlDialect(c);
     }
